@@ -1,5 +1,5 @@
 from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, \
-                                                                row_col
+                                                                row_col, adjacent_positions
 import numpy as np
 
 
@@ -97,31 +97,74 @@ def central_state_space(obs_dict, config_dict, prev_head):
     food1_row, food1_column = centralize(*row_col(foods[0], configuration.columns))
     food2_row, food2_column = centralize(*row_col(foods[1], configuration.columns))
 
-    #     food1_row_feat = float(food1_row - 3)/3 if food1_row>=3 else float(food1_row - 3)/3
-    #     food2_row_feat = float(food2_row - 3)/3 if food2_row>=3 else float(food2_row - 3)/3
+    food1_row_feat = float(food1_row - 3) / 3 if food1_row >= 3 else float(food1_row - 3) / 3
+    food2_row_feat = float(food2_row - 3) / 3 if food2_row >= 3 else float(food2_row - 3) / 3
 
-    #     food1_col_feat = float(food1_column - 5)/5 if food1_column>=5 else float(food1_column - 5)/5
-    #     food2_col_feat = float(food2_column - 5)/5 if food2_column>=5 else float(food2_column - 5)/5
+    food1_col_feat = float(food1_column - 5) / 5 if food1_column >= 5 else float(food1_column - 5) / 5
+    food2_col_feat = float(food2_column - 5) / 5 if food2_column >= 5 else float(food2_column - 5) / 5
+    food_feats = np.array([food1_row_feat, food2_row_feat, food1_col_feat, food2_col_feat])
 
     # Create the grid
     board = np.zeros([7, 11])
     # Add food to board
-    board[food1_row, food1_column] = 1
-    board[food2_row, food2_column] = 1
+    #     board[food1_row, food1_column] = 1
+    #     board[food2_row, food2_column] = 1
 
-    for goose in observation.geese:
-        if len(goose) > 0:
-            for pos in goose:
+    for ind, goose in enumerate(observation.geese):
+        if ind != player_index:
+            if len(goose) > 0:
+
+                ap = adjacent_positions(goose[0], 11, 7)
+                for p in ap:
+                    row, col = centralize(*row_col(p, configuration.columns))
+                    board[row, col] = -.33
+
+        for pos in goose:
+            if len(goose) > 0:
                 # set bodies to 1
                 row, col = centralize(*row_col(pos, configuration.columns))
-                board[row, col] = -0.5
-                # Set head to five
-            row, col = centralize(*row_col(goose[0], configuration.columns))
-            board[row, col] = -1
-            # Just make sure my goose head is 0
-            board[3, 5] = 0
+                board[row, col] = -1
 
-    return board  # ,len(player_goose), food1_row_feat, food1_col_feat, food2_row_feat, food2_col_feat
+        if len(goose) > 1:
+            # Set tails to -0.1 if the goose has a tail
+            row, col = centralize(*row_col(goose[-1], configuration.columns))
+            board[row, col] = -0.1
+
+    board[3, 5] = 0
+    return board, food_feats
+
+
+def min_dir(p1, p2, max_p):
+    """
+    min distance and direction from p1
+    """
+    direction = 'left'  # left by default
+    d1 = abs(p1 - p2)  # Distance going across board
+    d2 = min(abs(p1 - 0), abs(p1 - max_p)) + min(abs(p2 - 0), abs(p2 - max_p))  # Distance wrapping around board
+
+    if p1 > p2 and d1 < d2:
+        direction = 'left'
+
+    elif p1 > p2 and d1 > d2:
+        direction = 'right'
+
+    elif p2 > p1 and d1 < d2:
+        direction = 'right'
+
+    elif p2 > p1 and d1 > d2:
+        direction = 'left'
+
+    dir_vec = np.zeros(2)
+
+    if direction == 'left':
+        dir_vec[0] = 1
+
+    else:
+        dir_vec[1] = 1
+
+    min_dist = np.array([min(d1, d2)]) / max_p
+    return dir_vec, min_dist
+
 
 
 class StateTranslator_Central:
@@ -139,9 +182,6 @@ class StateTranslator_Central:
 
     def set_last_action(self, last_action):
         self.last_action = last_action
-
-    def update_step(self):
-        self.step_count += 1
 
     def __get_last_action_vec(self):
         action_vec = np.zeros(4)
@@ -179,16 +219,26 @@ class StateTranslator_Central:
 
     def get_state(self, observation, config):
 
-        board = central_state_space(observation, config, self.last_goose_ind)
-
-        geese = observation['geese']
-        self.current_goose_length = len(geese[observation['index']])
-
         #### This is exception handling for if our goose died this turn, to use the last
         ### known index as its postion for the state centralizer
-        if len(geese[observation['index']]) > 1:
+        geese = observation['geese']
+        if len(geese[observation['index']]) > 0:
             self.last_goose_ind = geese[observation['index']][0]
+            self.my_goose = geese[observation['index']][0]
 
+        board, food_feats = central_state_space(observation, config, self.last_goose_ind)
+        self.step_count = observation['step']
+
+        self.current_goose_length = len(geese[observation['index']])
+
+        food = observation['food']
+        dir_vec1x, min_dist1x = min_dir(self.my_goose, food[0], 11)
+        dir_vec1y, min_dist1y = min_dir(self.my_goose, food[0], 7)
+
+        dir_vec2x, min_dist2x = min_dir(self.my_goose, food[1], 11)
+        dir_vec2y, min_dist2y = min_dir(self.my_goose, food[1], 7)
+        food_vec = np.concatenate((dir_vec1x, dir_vec1y, dir_vec2x, dir_vec2y,
+                                   min_dist1x, min_dist1y, min_dist2x, min_dist2y))
         ####
         biggest_goose = 0
         alive_geese = 0
@@ -202,8 +252,9 @@ class StateTranslator_Central:
         state = np.append(state, self.__get_last_action_vec())
         state = np.append(state, self.current_goose_length / 15)
         state = np.append(state, biggest_goose / 15)
-        state = np.append(state, alive_geese / 8)
+        state = np.append(state, alive_geese / 4)
         state = np.append(state, self.step_count / 200)
+        state = np.append(state, food_vec)
         state = np.append(state, board.flatten())
 
         state = state.flatten()

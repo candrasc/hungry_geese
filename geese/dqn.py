@@ -16,16 +16,16 @@ class dqnAgent:
     https://www.researchgate.net/post/What-are-possible-reasons-why-Q-loss-is-not-converging-in-Deep-Q-Learning-algorithm
     """
 
-    def __init__(self, model=None, epsilon=1.0, epsilon_min=0.05):
+    def __init__(self, model=None, epsilon=1.0, epsilon_min=0.15):
 
         self.StateTrans = StateTranslator_Central()
-        self.state_shape = 85
+        self.state_shape = 97
         print('my state shape is:', self.state_shape)
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=5000)
         self.gamma = 0.95
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
-        self.epsilon_decay = 0.990
+        self.epsilon_decay = 0.999
         self.learning_rate = 0.001
         self.tau = .125
 
@@ -52,6 +52,7 @@ class dqnAgent:
         self.epsilon *= self.epsilon_decay
         self.epsilon = max(self.epsilon_min, self.epsilon)
         if np.random.random() < self.epsilon:
+            # Set random choice to north or east as the agent is not moving in these directions
             return random.choice([0, 1, 2, 3])
 
         action_values = self.model.predict(state.reshape(-1, self.state_shape))[0]
@@ -72,7 +73,6 @@ class dqnAgent:
         action_text = self.StateTrans.translate_action_to_text(action)
 
         # Update our step number and actions
-        self.StateTrans.update_step()
         self.StateTrans.set_last_action(action_text)
 
         return action_text
@@ -81,7 +81,7 @@ class dqnAgent:
         self.memory.append([state, action, reward, new_state, done])
 
     def replay(self):
-        batch_size = 32
+        batch_size = 64
         if len(self.memory) < batch_size:
             return
 
@@ -89,15 +89,37 @@ class dqnAgent:
         ########################
         # This can be sped up significantly, but processing all samples in batch rather than 1 at a time
         ####################
+        states = np.array([])
+        actions = np.array([])
+        rewards = []
+        dones = []
+        new_states = np.array([])
+        targets = np.array([])
+
         for sample in samples:
             state, action, reward, new_state, done = sample
-            target = self.target_model.predict(state.reshape(-1, self.state_shape))
-            if done:
-                target[0][action] = reward
+
+            states = np.append(states, state)
+            actions = np.append(actions, action)
+            rewards.append(reward)
+            new_states = np.append(new_states, new_state)
+            dones.append(done)
+
+        new_states = new_states.reshape(batch_size, self.state_shape)
+        targets = self.target_model.predict(states.reshape(batch_size, self.state_shape))
+        targets = targets.reshape(batch_size, 4)
+        for i in range(batch_size):
+            if dones[i]:
+                targets[i][int(actions[i])] = rewards[i]
+
             else:
-                Q_future = max(self.target_model.predict(new_state.reshape(-1, self.state_shape))[0])
-                target[0][action] = reward + Q_future * self.gamma
-            self.model.fit(state.reshape(-1, self.state_shape), target, epochs=1, verbose=0)
+                Q_future = max(self.target_model.predict(new_states[i].reshape(-1, self.state_shape))[0])
+                #                 print('targets i', targets[i])
+                #                 print('actions[i]', actions[i])
+                targets[i][int(actions[i])] = rewards[i] + Q_future * self.gamma
+
+        self.model.fit(states.reshape(batch_size, self.state_shape), targets,
+                       epochs=1, verbose=0)
 
     def target_train(self):
         weights = self.model.get_weights()
@@ -108,4 +130,3 @@ class dqnAgent:
 
     def save_model(self, fn):
         self.model.save(fn)
-
