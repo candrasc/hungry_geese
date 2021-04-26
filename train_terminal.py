@@ -91,6 +91,7 @@ for ep in range(num_episodes):
         if done:
             print('Done, Step: ', step)
             print('status, ', status)
+            print('Reward: ', reward)
             print('Trial: ', ep)
             results_dic[ep] = reward
 
