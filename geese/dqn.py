@@ -16,9 +16,12 @@ class dqnAgent:
     https://www.researchgate.net/post/What-are-possible-reasons-why-Q-loss-is-not-converging-in-Deep-Q-Learning-algorithm
     """
 
-    def __init__(self, model=None, epsilon=1.0, epsilon_min=0.15):
+    def __init__(self, model=None, state_translator = None, epsilon=1.0, epsilon_min=0.10):
 
-        self.StateTrans = StateTranslator_Central()
+        if state_translator==None:
+            self.StateTrans = StateTranslator_Central()
+        else:
+            self.StateTrans = state_translator
         self.state_shape = 97
         print('my state shape is:', self.state_shape)
         self.memory = deque(maxlen=5000)

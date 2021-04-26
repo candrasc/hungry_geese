@@ -166,7 +166,6 @@ def min_dir(p1, p2, max_p):
     return dir_vec, min_dist
 
 
-
 class StateTranslator_Central:
     """
     Returns a board where we are always at the center
@@ -273,12 +272,53 @@ class StateTranslator_Central:
         if cur > prev:
             reward = 100
 
-        else:
-            reward = -1
+        ### If we die -150
+        if cur == 0:
+            reward = -200
+
+        ### see if any geese are alive
+
+        # alive_geese = 0
+        # for ind, goose in enumerate(current_geese):
+        #     if ind != observation['index'] and len(goose) > 0:
+        #         alive_geese += 1
+
+        # If we are the last one standing
+        # if alive_geese == 0 and cur > 0:
+        #     reward = 1000
+
+        ### if the game ends and we are the biggest
+        # if self.step_count == 200:
+        #     biggest_goose = 0
+        #     biggest_goose_ind = None
+        #     for ind, goose in enumerate(current_geese):
+        #         if len(goose) > biggest_goose:
+        #             biggest_goose = len(goose)
+        #             biggest_goose_ind = ind
+        #
+        #     if biggest_goose_ind == observation['index']:
+        #         reward = 1000
+
+        return reward
+
+
+class StateTranslator_TerminalRewards(StateTranslator_Central):
+
+    def calculate_reward(self, observation):
+
+        current_geese = observation['geese']
+        prev = self.last_goose_length
+        cur = len(current_geese[observation['index']])
+
+        reward = -1
+
+        ## If we grow, reward is 100
+        if cur > prev:
+            reward = 100
 
         ### If we die -150
         if cur == 0:
-            reward = -150
+            reward = -200
 
         ### see if any geese are alive
 
@@ -289,9 +329,9 @@ class StateTranslator_Central:
 
         # If we are the last one standing
         if alive_geese == 0 and cur > 0:
-            reward = 500
+            reward = 1000
 
-        ### if the game ends and we are the biggest
+        ## if the game ends and we are the biggest
         if self.step_count == 200:
             biggest_goose = 0
             biggest_goose_ind = None
@@ -301,6 +341,6 @@ class StateTranslator_Central:
                     biggest_goose_ind = ind
 
             if biggest_goose_ind == observation['index']:
-                reward = 500
+                reward = 1000
 
         return reward
