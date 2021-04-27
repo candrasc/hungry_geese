@@ -16,7 +16,7 @@ model_dir = 'Models'
 train_name = 'terminal_transfer_learning'
 directory = os.sep.join([model_dir, train_name])
 
-mod_num = 12150 # Which trial to load
+mod_num = 12050# Which trial to load
 state_translator = StateTranslator_TerminalRewards()
 epsilon = .05
 epsilon_min = .05
@@ -27,10 +27,10 @@ if mod_num > 0:
                    state_translator=state_translator,
                    epsilon=epsilon,
                    epsilon_min=epsilon_min)
-
+    dqn.target_model = model
 else:
-    dqn = dqnAgent(epsilon=epsilon,
-                   epsilon_min=epsilon_min)
+    dqn = dqnAgent(epsilon=0,
+                   epsilon_min=0)
 
 model_competitor = keras.models.load_model(f'{directory}/trial-{mod_num}')
 
@@ -52,7 +52,6 @@ for ep in range(num_episodes):
     my_goose_ind = observation['index']
 
     dqn.StateTrans.set_last_action(None)
-    dqn.StateTrans.step_count = 0
     dqn.StateTrans.last_goose_length = 1
     cur_state = dqn.StateTrans.get_state(observation, config)
 
@@ -100,7 +99,7 @@ for ep in range(num_episodes):
                 with open(directory + "/results_dic.pkl", 'wb') as f:
                     pickle.dump(results_dic, f)
 
-            if ep + mod_num % 250 == 0:
+            if (ep + mod_num) % 500 == 0:
                 print('Updating competitor model')
                 # I'm scared of using the same instance of the model in two seperate classes... deepcopy didn't work so
                 # I'll just use this fix for now
