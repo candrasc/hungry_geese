@@ -1,8 +1,9 @@
 import numpy as np
 import random
-from keras.models import Sequential
-from keras.layers import Dense, Dropout
-from keras.optimizers import Adam
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow. keras.optimizers import Adam
 
 from collections import deque
 from .StateTranslator import StateTranslator_Central

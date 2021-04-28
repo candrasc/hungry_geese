@@ -2,10 +2,12 @@ from kaggle_environments import make
 from geese.heuristic_agents import GreedyAgent, SuperGreedyAgent
 from geese.dqn import dqnAgent
 import pickle, os
-import keras
+from tensorflow import keras
 from copy import deepcopy
 from geese.StateTranslator import StateTranslator_TerminalRewards
 
+import tensorflow as tf
+sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 
 steps_per_ep = 200
 num_episodes = 10000
@@ -13,12 +15,12 @@ num_episodes = 10000
 env = make("hungry_geese", debug=True)
 config = env.configuration
 model_dir = 'Models'
-train_name = 'terminal_transfer_learning'
+train_name = 'gpu-test'
 directory = os.sep.join([model_dir, train_name])
 
-mod_num = 12000# Which trial to load
+mod_num = 0# Which trial to load
 state_translator = StateTranslator_TerminalRewards()
-epsilon = .05
+epsilon = .95
 epsilon_min = .05
 
 if mod_num > 0:
@@ -29,15 +31,15 @@ if mod_num > 0:
                    epsilon_min=epsilon_min)
     dqn.target_model = model
 else:
-    dqn = dqnAgent(epsilon=0,
-                   epsilon_min=0)
+    dqn = dqnAgent(epsilon=epsilon,
+                   epsilon_min=epsilon_min)
 
-model_competitor = keras.models.load_model(f'{directory}/trial-{mod_num}')
+model_competitor = keras.models.load_model(f'Models/terminal_transfer_learning/trial-12000')
 
 # Want a little epsilon to add some variablitity to actions so we don't overfit on this opponent
 dqn_competitor = dqnAgent(model=model_competitor,
-                          epsilon=0.05,
-                          epsilon_min=0.05)
+                          epsilon=0,
+                          epsilon_min=0)
 
 agent3 = SuperGreedyAgent()
 agent4 = GreedyAgent()
