@@ -16,7 +16,7 @@ model_dir = 'Models'
 train_name = 'terminal_transfer_learning'
 directory = os.sep.join([model_dir, train_name])
 
-mod_num = 12050# Which trial to load
+mod_num = 12000# Which trial to load
 state_translator = StateTranslator_TerminalRewards()
 epsilon = .05
 epsilon_min = .05
@@ -45,6 +45,7 @@ agent4 = GreedyAgent()
 agents = [dqn, dqn_competitor, agent3, agent4]
 
 results_dic = {}
+wins = 0
 for ep in range(num_episodes):
     print('episode number: ', ep+mod_num)
     state_dict = env.reset(num_agents=4)[0]
@@ -75,6 +76,8 @@ for ep in range(num_episodes):
 
         # Set rewards based on if value was gained or lost
         reward = dqn.StateTrans.calculate_reward(observation)
+        if reward > 100:
+            wins += 1
         # Update our goose length based on prev state
         dqn.StateTrans.update_length()
 
@@ -99,13 +102,15 @@ for ep in range(num_episodes):
                 with open(directory + "/results_dic.pkl", 'wb') as f:
                     pickle.dump(results_dic, f)
 
-            if (ep + mod_num) % 500 == 0:
-                print('Updating competitor model')
-                # I'm scared of using the same instance of the model in two seperate classes... deepcopy didn't work so
-                # I'll just use this fix for now
-                model1 = keras.models.load_model(f'{directory}/trial-{ep + mod_num}')
-                dqn_competitor.model = model1
-
+                # Have we won at least 22 of our last 50 games? Then we update the competitor model
+                print('win percentage: ', wins/50)
+                if wins > 22:
+                    print('Updating competitor model')
+                    # I'm scared of using the same instance of the model in two seperate classes... deepcopy didn't work so
+                    # I'll just use this fix for now
+                    model1 = keras.models.load_model(f'{directory}/trial-{ep + mod_num}')
+                    dqn_competitor.model = model1
+                wins = 0
             break
 
 
