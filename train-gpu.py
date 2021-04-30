@@ -1,6 +1,7 @@
 from kaggle_environments import make
 from geese.heuristic_agents import GreedyAgent, SuperGreedyAgent
 from geese.dqn import dqnAgent
+from geese.dqn_embeddings import dqnEmbeddings
 import pickle, os
 from tensorflow import keras
 from copy import deepcopy
@@ -15,24 +16,25 @@ num_episodes = 10000
 env = make("hungry_geese", debug=True)
 config = env.configuration
 model_dir = 'Models'
-train_name = 'gpu-test'
+train_name = 'emb_test_cpu2'
 directory = os.sep.join([model_dir, train_name])
 
-mod_num = 0# Which trial to load
-state_translator = StateTranslator_TerminalRewards()
-epsilon = .95
-epsilon_min = .05
+mod_num = 0 # Which trial to load
+# state_translator = StateTranslator_TerminalRewards()
+epsilon = .98
+epsilon_min = 0.05
 
 if mod_num > 0:
     model = keras.models.load_model(f'{directory}/trial-{mod_num}')
-    dqn = dqnAgent(model=model,
-                   state_translator=state_translator,
-                   epsilon=epsilon,
-                   epsilon_min=epsilon_min)
-    dqn.target_model = model
+    dqn_emb = dqnEmbeddings(model=model,
+                       epsilon=epsilon,
+                       epsilon_min=epsilon_min)
+
+    dqn_emb.target_model = model
+
 else:
-    dqn = dqnAgent(epsilon=epsilon,
-                   epsilon_min=epsilon_min)
+    dqn_emb = dqnEmbeddings(epsilon=epsilon,
+                       epsilon_min=epsilon_min)
 
 model_competitor = keras.models.load_model(f'Models/terminal_transfer_learning/trial-12000')
 
@@ -44,7 +46,7 @@ dqn_competitor = dqnAgent(model=model_competitor,
 agent3 = SuperGreedyAgent()
 agent4 = GreedyAgent()
 
-agents = [dqn, dqn_competitor, agent3, agent4]
+agents = [dqn_emb, dqn_competitor, agent3, agent4]
 
 results_dic = {}
 wins = 0
@@ -54,9 +56,9 @@ for ep in range(num_episodes):
     observation = state_dict['observation']
     my_goose_ind = observation['index']
 
-    dqn.StateTrans.set_last_action(None)
-    dqn.StateTrans.last_goose_length = 1
-    cur_state = dqn.StateTrans.get_state(observation, config)
+    dqn_emb.StateTrans.set_last_action(None)
+    dqn_emb.StateTrans.last_goose_length = 1
+    cur_state = dqn_emb.StateTrans.get_state(observation, config)
 
     done = False
     for step in range(steps_per_ep):
@@ -73,20 +75,20 @@ for ep in range(num_episodes):
         action = state_dict['action']
         status = state_dict['status']
 
-        action_for_model = dqn.StateTrans.translate_text_to_int(action)
-        new_state = dqn.StateTrans.get_state(observation, config)
+        action_for_model = dqn_emb.StateTrans.translate_text_to_int(action)
+        new_state = dqn_emb.StateTrans.get_state(observation, config)
 
         # Set rewards based on if value was gained or lost
-        reward = dqn.StateTrans.calculate_reward(observation)
+        reward = dqn_emb.StateTrans.calculate_reward(observation)
         if reward > 100:
             wins += 1
         # Update our goose length based on prev state
-        dqn.StateTrans.update_length()
+        dqn_emb.StateTrans.update_length()
 
         if status != "ACTIVE":
             done = True
 
-        dqn.remember(cur_state, action_for_model, reward, new_state, done)
+        dqn_emb.remember(cur_state, action_for_model, reward, new_state, done)
 
         cur_state = new_state
 
@@ -100,7 +102,7 @@ for ep in range(num_episodes):
             results_dic[ep] = reward
 
             if ep % 50 == 0:
-                dqn.save_model(directory + f"/trial-{ep+mod_num}")
+                dqn_emb.save_model(directory + f"/trial-{ep + mod_num}")
                 with open(directory + "/results_dic.pkl", 'wb') as f:
                     pickle.dump(results_dic, f)
 
@@ -117,7 +119,7 @@ for ep in range(num_episodes):
 
 
         if step % 5 == 0:
-            dqn.replay()
-            dqn.target_train()
+            dqn_emb.replay()
+            dqn_emb.target_train()
 
         # Every 250 steps, we update the competitor model to not overfit to one agents strats

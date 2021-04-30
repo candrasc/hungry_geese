@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, BatchNormalization
 from tensorflow. keras.optimizers import Adam
 
 from collections import deque
@@ -42,10 +42,15 @@ class dqnAgent:
     def create_model(self):
         model = Sequential()
         model.add(Dense(2000, input_dim=self.state_shape, activation="relu"))
+        model.add(BatchNormalization())
         model.add(Dense(1000, activation="relu"))
+        model.add(BatchNormalization())
         model.add(Dense(500, activation="relu"))
+        model.add(BatchNormalization())
         model.add(Dense(1000, activation="relu"))
+        model.add(BatchNormalization())
         model.add(Dense(500, activation="relu"))
+        model.add(BatchNormalization())
         model.add(Dense(100, activation="relu"))
         model.add(Dense(4))
         model.compile(loss="MSE",
@@ -98,7 +103,6 @@ class dqnAgent:
         rewards = []
         dones = []
         new_states = np.array([])
-        targets = np.array([])
 
         for sample in samples:
             state, action, reward, new_state, done = sample
@@ -118,8 +122,7 @@ class dqnAgent:
 
             else:
                 Q_future = max(self.target_model.predict(new_states[i].reshape(-1, self.state_shape))[0])
-                #                 print('targets i', targets[i])
-                #                 print('actions[i]', actions[i])
+
                 targets[i][int(actions[i])] = rewards[i] + Q_future * self.gamma
 
         self.model.fit(states.reshape(batch_size, self.state_shape), targets,
